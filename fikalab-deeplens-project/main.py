@@ -15,6 +15,10 @@ from collections import Counter
 
 RESOLUTION = {'1080p': (1920, 1080), '720p': (1280, 720), '480p': (858, 480), '240p': (426, 240)}
 
+MAX_SIZE = 10
+previous_points = [None] * MAX_SIZE
+current = 0
+
 
 # load_aws_pretrained_model(model_path: str, use_gpu: bool = True)
 def load_aws_pretrained_model(mpath, use_gpu=True):
@@ -63,7 +67,6 @@ def main():
     detection_threshold = 0.25
 
     # The height and width of the training set images
-
     model_input_height = 300
     model_input_width = 300
 
@@ -117,14 +120,19 @@ def main():
 
     # def counter_classify_frame(frame: np.ndarray, frame_timestamp: float):
     def counter_classify_frame(frame, frame_timestamp):
+        global previous_points
+        global current
+
         # Resize frame to the same size as the training set.
         frame_resize = cv2.resize(frame, (model_input_height, model_input_width))
+
         # Run the images through the inference engine and parse the results using
         # the parser API, note it is possible to get the output of doInference
         # and do the parsing manually, but since it is a ssd model,
         # a simple API is provided.
         parsed_inference_results = model.parseResult(model_type,
                                                      model.doInference(frame_resize))
+
         # Compute the scale in order to draw bounding boxes on the full resolution
         # image.
         yscale = float(frame.shape[0] / model_input_height)
@@ -135,8 +143,7 @@ def main():
         # Get the detected objects and probabilities
         for obj in parsed_inference_results[model_type]:
             if obj['prob'] > detection_threshold:
-                #print('DEBUG: ' + str(obj['prob']))
-                #print('TimeStamp' )
+                # print('DEBUG: ' + str(obj['prob']))
                 counter_objects[output_map[obj['label']]] += 1
 
                 # Add bounding boxes to full resolution frame
@@ -146,12 +153,16 @@ def main():
                 xmax = int(xscale * obj['xmax']) + int(
                     (obj['xmax'] - model_input_width / 2) + model_input_width / 2)
                 ymax = int(yscale * obj['ymax'])
-                # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
-                # for more information about the cv2.rectangle method.
-                # Method signature: image, point1, point2, color, and tickness.
-                #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 10)
 
-                cv2.circle(frame, (((xmax-xmin)/2)+xmin,((ymax-ymin)/2)+ymin), 50, (75,251,75),10)
+                if obj['label'] == 15:
+                    center_circle = (((xmax-xmin)/2)+xmin, ((ymax-ymin)/2)+ymin)
+                    previous_points[current] = center_circle
+                    current = (current + 1) % MAX_SIZE
+                else:
+                    # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
+                    # for more information about the cv2.rectangle method.
+                    # Method signature: image, point1, point2, color, and tickness.
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 10)
 
                 # Amount to offset the label/probability text above the bounding box.
                 text_offset = 15
@@ -164,7 +175,10 @@ def main():
                             (xmin, ymin - text_offset),
                             cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 165, 20), 6)
 
-        print(counter_objects)
+        print counter_objects
+
+        for point in previous_points:
+            cv2.circle(frame, point, 25, (75, 251, 75), 20)
 
         return frame
 
