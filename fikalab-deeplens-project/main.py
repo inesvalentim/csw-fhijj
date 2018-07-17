@@ -60,7 +60,7 @@ def main():
     print "loaded!"
 
     # Set the threshold for detection
-    detection_threshold = 0.40
+    detection_threshold = 0.25
 
     # The height and width of the training set images
 
@@ -135,6 +135,8 @@ def main():
         # Get the detected objects and probabilities
         for obj in parsed_inference_results[model_type]:
             if obj['prob'] > detection_threshold:
+                #print('DEBUG: ' + str(obj['prob']))
+                #print('TimeStamp' )
                 counter_objects[output_map[obj['label']]] += 1
 
                 # Add bounding boxes to full resolution frame
@@ -147,7 +149,10 @@ def main():
                 # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
                 # for more information about the cv2.rectangle method.
                 # Method signature: image, point1, point2, color, and tickness.
-                cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 10)
+                #cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 10)
+
+                cv2.circle(frame, (((xmax-xmin)/2)+xmin,((ymax-ymin)/2)+ymin), 50, (75,251,75),10)
+
                 # Amount to offset the label/probability text above the bounding box.
                 text_offset = 15
                 # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
