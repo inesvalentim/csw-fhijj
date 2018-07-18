@@ -1,5 +1,0 @@
-deploying server:
-$ server.py
-
-testing:
-$ 
