@@ -2,10 +2,9 @@
 
 # imports:
 
-from flask import Flask, render_template, Response
+from flask import Flask, render_template, Response, request
 from importlib import import_module
 import os
-import request
 import base64
 if os.environ.get('CAMERA'):
     Camera = import_module('camera_' + os.environ['CAMERA']).Camera
@@ -19,6 +18,7 @@ app = Flask(__name__)
 awsFrame = None
 
 # methods:
+
 
 @app.route('/')
 def index():
@@ -34,13 +34,6 @@ def gen(camera):
                b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
 
-def ourResponse():
-    """Video streaming generator function."""
-    while True:
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + awsFrame.tobytes() + b'\r\n')
-
-
 @app.route('/video_feed')
 def video_feed():
     """Video streaming route. Put this in the src attribute of an img tag."""
@@ -48,13 +41,26 @@ def video_feed():
     return Response(ourResponse(), mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
+def ourResponse():
+    """Video streaming generator function."""
+    while True:
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + awsFrame + b'\r\n')
+
+
 @app.route('/video_stream', methods=['PUT'])
 def video_stream():
     """Video streaming route. Put this in the src attribute of an img tag."""
-    clientContent = request.get_json(silent=True)
+    clientContent = request.json
+    newframe = clientContent[u'frame']
+
     global awsFrame
-    awsFrame = base64.b64decode(clientContent['frame'])
+    awsFrame = base64.b64decode(newframe)
+
+    # tratar do resto...
+
+    return Response("ok", mimetype='text')
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', threaded=True)
+    app.run(host='10.8.11.45', threaded=True)
