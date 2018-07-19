@@ -2,6 +2,7 @@
 
 # imports:
 
+from face_rekog import *
 from flask import Flask, render_template, Response, request
 from importlib import import_module
 import os
@@ -23,6 +24,21 @@ success, tmpFrame = cv2.imencode('.jpg', noSignal)
 
 awsFrame = tmpFrame
 #awsFrame = None
+
+
+#faz o treino
+path_dir='images/'
+p_fig=['ines1_s',
+       'joaoc_s',
+       'hugo']
+known_face_names=[  "Ines Valentim",
+"Joao Carvalho",
+"Hugo Marques"
+]
+
+known_face_encodings=[]
+for i in range(len(p_fig)):
+    known_face_encodings.append(encode(path_dir+p_fig[i]+'.jpg'))
 
 # methods:
 
@@ -61,9 +77,16 @@ def video_stream():
     clientContent = request.json
     newframe = clientContent[u'frame']
 
-    global awsFrame
-    awsFrame = base64.b64decode(newframe)
+    img0 = base64.b64decode(newframe)
 
+    img1 = cv2.imdecode(np.fromstring(img0, dtype=np.uint8), -1)
+
+    img2 = rekog(img1,known_face_encodings,known_face_names)
+
+    success, img3 = cv2.imencode('.jpg', img2) 
+
+    global awsFrame
+    awsFrame = img2
 
     # tratar do resto...
 
