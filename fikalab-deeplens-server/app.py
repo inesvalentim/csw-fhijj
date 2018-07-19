@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 # imports:
-from face_rekog import *
+
 from flask import Flask, render_template, Response, request
 from importlib import import_module
 import os
@@ -16,11 +16,11 @@ else:
 
 app = Flask(__name__)
 
-noSignal = cv2.imread('nosignal.jpg', 0)
-success, tmpFrame = cv2.imencode('.jpg', noSignal)
+# noSignal = cv2.imread('nosignal.jpg', 0)
+# success, tmpFrame = cv2.imencode('.jpg', noSignal)
 
-awsFrame = tmpFrame
-#awsFrame = None
+# awsFrame = tmpFrame
+awsFrame = None
 
 # methods:
 
@@ -59,17 +59,8 @@ def video_stream():
     clientContent = request.json
     newframe = clientContent[u'frame']
 
-    decoded_frame=base64.b64decode(newframe)
-
-    img = cv2.imdecode(np.fromstring(newframe, dtype=np.uint8), -1)
-
-    #rekog(img,)
-    final = img
-
-     success, jpeg = cv2.imencode('.jpg', final)
-
     global awsFrame
-    awsFrame = final
+    awsFrame = base64.b64decode(newframe)
 
     # tratar do resto...
 
