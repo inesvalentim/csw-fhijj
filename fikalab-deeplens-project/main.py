@@ -4,10 +4,12 @@ Authors: Diana Mendes, Samuel Pedro, Jason Bolito & FIKALAB DeepLens future proj
 Notes: Some model loading code snippets were adapted from AWS DeepLens sample projects.
 """
 
-import os
+# import os
 
 import awscam
 import cv2
+import base64
+import requests
 
 from cpdl import AwsCaptureProcessDisplayLoop
 
@@ -15,6 +17,9 @@ from collections import Counter
 from TrackingPeople import TrackingPeople
 
 RESOLUTION = {'1080p': (1920, 1080), '720p': (1280, 720), '480p': (858, 480), '240p': (426, 240)}
+
+# TODO tune this parameter
+TIMEOUT = 10
 
 
 # load_aws_pretrained_model(model_path: str, use_gpu: bool = True)
@@ -26,6 +31,7 @@ def main():
     resolution = RESOLUTION['240p']
     print "output resolution is {}".format(resolution)
 
+    """
     # !!!!!!!!!!!!! OUTPUT SETUP !!!!!!!!!!!!!!
 
     # Path to the FIFO file. The lambda only has permissions to the tmp
@@ -38,6 +44,7 @@ def main():
     # Create the FIFO file if it doesn't exist.
     if not os.path.exists(result_path):
         os.mkfifo(result_path)
+    """
 
     # !!!!!!!!!!!!! MODEL SETUP !!!!!!!!!!!!!!
 
@@ -67,7 +74,7 @@ def main():
     model_input_height = 300
     model_input_width = 300
 
-    fifo_file = open(result_path, 'w')
+    # fifo_file = open(result_path, 'w')
 
     tracker = TrackingPeople()
 
@@ -94,9 +101,9 @@ def main():
         for obj in parsed_inference_results[model_type]:
             if obj['prob'] > detection_threshold:
                 # Add bounding boxes to full resolution frame
-                xmin = int(xscale * obj['xmin']) + int((obj['xmin'] - model_input_width / 2) + model_input_width / 2)
+                xmin = int(xscale * obj['xmin'])# + int((obj['xmin'] - model_input_width / 2) + model_input_width / 2)
                 ymin = int(yscale * obj['ymin'])
-                xmax = int(xscale * obj['xmax']) + int((obj['xmax'] - model_input_width / 2) + model_input_width / 2)
+                xmax = int(xscale * obj['xmax'])# + int((obj['xmax'] - model_input_width / 2) + model_input_width / 2)
                 ymax = int(yscale * obj['ymax'])
 
                 # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
@@ -129,6 +136,9 @@ def main():
         parsed_inference_results = model.parseResult(model_type,
                                                      model.doInference(frame_resize))
 
+        filtered_peeps = [obj for obj in parsed_inference_results[model_type]
+                          if (obj['label'] == 15) and (obj['prob'] > detection_threshold)]
+
         # Compute the scale in order to draw bounding boxes on the full resolution
         # image.
         yscale = float(frame.shape[0] / model_input_height)
@@ -139,34 +149,30 @@ def main():
         # Get the detected objects and probabilities
         for obj in parsed_inference_results[model_type]:
             if obj['prob'] > detection_threshold:
-                # print('DEBUG: ' + str(obj['prob']))
                 counter_objects[output_map[obj['label']]] += 1
-
+                
                 # Add bounding boxes to full resolution frame
-                xmin = int(xscale * obj['xmin']) + int(
-                    (obj['xmin'] - model_input_width / 2) + model_input_width / 2)
+                xmin = int(xscale * obj['xmin']) + int((obj['xmin'] - model_input_width / 2) + model_input_width / 2)
                 ymin = int(yscale * obj['ymin'])
-                xmax = int(xscale * obj['xmax']) + int(
-                    (obj['xmax'] - model_input_width / 2) + model_input_width / 2)
+                xmax = int(xscale * obj['xmax']) + int((obj['xmax'] - model_input_width / 2) + model_input_width / 2)
                 ymax = int(yscale * obj['ymax'])
+
+                xmin = max([0, xmin])
+                xmax = max([0, xmax])
+                ymin = max([0, ymin])
+                ymax = max([0, ymax])
 
                 if obj['label'] == 15:
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (75, 251, 75), 10)
                     center_circle = (((xmax-xmin)/2)+xmin, ((ymax-ymin)/2)+ymin)
 
                     # convert it into HSV
-                    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                    # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+                    # roi_hsv = hsv[ymin:ymax, xmin:xmax, :]
 
-                    roi_hsv = hsv[xmin:xmax, ymin:ymax, :]
-
-                    tracker.find_closest_person(center_circle)
-                    # previous_points[current] = center_circle
-                    # current = (current + 1) % MAX_SIZE
-                else:
-                    # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
-                    # for more information about the cv2.rectangle method.
-                    # Method signature: image, point1, point2, color, and tickness.
-                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (255, 165, 20), 10)
+                    frame_cut = frame[ymin:ymax, xmin:xmax, :]
+                    tracker.find_closest_person_v2(frame_cut, center_circle, frame_timestamp)
+                    # tracker.find_closest_person_v2(frame_cut, center_circle, frame_timestamp, frame.shape[1])
 
                 # Amount to offset the label/probability text above the bounding box.
                 text_offset = 15
@@ -179,22 +185,27 @@ def main():
                             (xmin, ymin - text_offset),
                             cv2.FONT_HERSHEY_SIMPLEX, 2.5, (255, 165, 20), 6)
 
-        print counter_objects
+        # print counter_objects
+        # print len(tracker.people)
 
-        for person_id, attributes in tracker.people.items():
-            for point in attributes['positions']:
-                if point:
-                    cv2.circle(frame, point, 25, (75, 251, 75), 20)
-                    print point
+        for person in tracker.people:
+            if frame_timestamp - person.feature.timestamp > TIMEOUT:
+                tracker.people.remove(person)
+            else:
+                for position in person.positions:
+                    # cv2.circle(frame, point, 25, (75, 251, 75), 20)
+                    cv2.circle(frame, position, 25, person.colour, 20)
 
-        return frame
+        return frame, filtered_peeps
 
     # PROCESS HANDLER (writes image to video fifo file)
     def write_to_video(frame):
-        success, jpeg = cv2.imencode('.jpg', cv2.resize(frame, resolution))
+        success, jpeg = cv2.imencode('.jpg', cv2.resize(frame[0], resolution))
+
         if not success:
             raise Exception('Failed to set frame data')
 
+        """
         # Write the data to the FIFO file. This call will block
         # meaning the code will come to a halt here until a consumer
         # is available.
@@ -202,6 +213,13 @@ def main():
             fifo_file.write(jpeg.tobytes())
         except IOError:
             pass
+        """
+
+        # encode64
+        jpeg_as_text = base64.b64encode(jpeg).decode()
+
+        # send newframe
+        requests.put('http://10.8.10.6:5000/video_stream', json={'frame': jpeg_as_text, 'objects': frame[1]})
 
     # start Capture Process Display Loop (capture and processing handlers are executed on separate threads whenever
     # possible)
@@ -211,7 +229,7 @@ def main():
     loop.register_capture_handler(capture_handler=counter_classify_frame, process_handler=write_to_video)
 
     # close fifo file after the CPDL is stopped
-    loop.register_on_stop_handler(fifo_file.close)
+    # loop.register_on_stop_handler(fifo_file.close)
 
     # run the event loop (this call blocks until interrupted (in this case, forever)
     loop.start_loop(blocking=True)
