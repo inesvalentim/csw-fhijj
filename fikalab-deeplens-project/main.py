@@ -12,12 +12,9 @@ import cv2
 from cpdl import AwsCaptureProcessDisplayLoop
 
 from collections import Counter
+from TrackingPeople import TrackingPeople
 
 RESOLUTION = {'1080p': (1920, 1080), '720p': (1280, 720), '480p': (858, 480), '240p': (426, 240)}
-
-MAX_SIZE = 10
-previous_points = [None] * MAX_SIZE
-current = 0
 
 
 # load_aws_pretrained_model(model_path: str, use_gpu: bool = True)
@@ -64,13 +61,15 @@ def main():
     print "loaded!"
 
     # Set the threshold for detection
-    detection_threshold = 0.25
+    detection_threshold = 0.35
 
     # The height and width of the training set images
     model_input_height = 300
     model_input_width = 300
 
     fifo_file = open(result_path, 'w')
+
+    tracker = TrackingPeople()
 
     # !!!!!!!!!!!!!!!!! HANDLERS !!!!!!!!!!!!!!!!!!!!!! (handlers are defined as closures)
     # CAPTURE HANDLER: handles inference part of program
@@ -120,9 +119,6 @@ def main():
 
     # def counter_classify_frame(frame: np.ndarray, frame_timestamp: float):
     def counter_classify_frame(frame, frame_timestamp):
-        global previous_points
-        global current
-
         # Resize frame to the same size as the training set.
         frame_resize = cv2.resize(frame, (model_input_height, model_input_width))
 
@@ -155,9 +151,17 @@ def main():
                 ymax = int(yscale * obj['ymax'])
 
                 if obj['label'] == 15:
+                    cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (75, 251, 75), 10)
                     center_circle = (((xmax-xmin)/2)+xmin, ((ymax-ymin)/2)+ymin)
-                    previous_points[current] = center_circle
-                    current = (current + 1) % MAX_SIZE
+
+                    # convert it into HSV
+                    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+
+                    roi_hsv = hsv[xmin:xmax, ymin:ymax, :]
+
+                    tracker.find_closest_person(center_circle)
+                    # previous_points[current] = center_circle
+                    # current = (current + 1) % MAX_SIZE
                 else:
                     # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
                     # for more information about the cv2.rectangle method.
@@ -177,8 +181,11 @@ def main():
 
         print counter_objects
 
-        for point in previous_points:
-            cv2.circle(frame, point, 25, (75, 251, 75), 20)
+        for person_id, attributes in tracker.people.items():
+            for point in attributes['positions']:
+                if point:
+                    cv2.circle(frame, point, 25, (75, 251, 75), 20)
+                    print point
 
         return frame
 
