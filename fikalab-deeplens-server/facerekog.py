@@ -1,9 +1,10 @@
 import base64
 import cv2
-
+from io import BytesIO
 import face_recognition
+import numpy as np
 
-def encode(imgpath):
+def encode(path):
     #Load Image
     print "Load Image"
     image=face_recognition.load_image_file(path)
@@ -15,6 +16,9 @@ def encode(imgpath):
 
 def rekog(frame,known_face_encodings,known_face_names):
     # Resize frame of video to 1/4 size for faster face recognition processing
+    image_file=BytesIO(frame)
+    frame=face_recognition.load_image_file(image_file)
+    print np.shape(frame)
     small_frame = cv2.resize(frame, (0, 0), fx=0.25, fy=0.25)
 
     # Convert the image from BGR color (which OpenCV uses) to RGB color (which face_recognition uses)
@@ -64,24 +68,6 @@ def rekog(frame,known_face_encodings,known_face_names):
 
 #def b642img(b64):
     #return base64.b64decode(bytes()
-
-
-def init_facerekog():
-    #faz o treino
-    path_dir=r'C:\Users\joaof\PycharmProjects\face_recognition-master\examples\'
-    p_fig=['ines1_s',
-           'joaoc_s',
-           'hugo']
-    known_face_names=[  "Ines Valentim",
-    "Joao Carvalho",
-    "Hugo Marques"
-    ]
-
-    known_face_encodings=[]
-    for i in range(len(p_fig)):
-        known_face_encodings.append(encode(path_dir+p_fig[i]+'.jpg'))
-
-    return known_face_encodings
 
 
 
