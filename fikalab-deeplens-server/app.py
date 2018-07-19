@@ -6,6 +6,7 @@ from flask import Flask, render_template, Response, request
 from importlib import import_module
 import os
 import base64
+import cv2
 if os.environ.get('CAMERA'):
     Camera = import_module('camera_' + os.environ['CAMERA']).Camera
 else:
@@ -15,6 +16,10 @@ else:
 
 app = Flask(__name__)
 
+# noSignal = cv2.imread('nosignal.jpg', 0)
+# success, tmpFrame = cv2.imencode('.jpg', noSignal)
+
+# awsFrame = tmpFrame
 awsFrame = None
 
 # methods:
