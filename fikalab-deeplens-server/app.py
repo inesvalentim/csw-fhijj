@@ -7,6 +7,8 @@ from importlib import import_module
 import os
 import base64
 import cv2
+from face_rekog import *
+
 if os.environ.get('CAMERA'):
     Camera = import_module('camera_' + os.environ['CAMERA']).Camera
 else:
@@ -16,11 +18,11 @@ else:
 
 app = Flask(__name__)
 
-# noSignal = cv2.imread('nosignal.jpg', 0)
-# success, tmpFrame = cv2.imencode('.jpg', noSignal)
+noSignal = cv2.imread('nosignal.jpg', 0)
+success, tmpFrame = cv2.imencode('.jpg', noSignal)
 
-# awsFrame = tmpFrame
-awsFrame = None
+awsFrame = tmpFrame
+#awsFrame = None
 
 # methods:
 
@@ -61,6 +63,7 @@ def video_stream():
 
     global awsFrame
     awsFrame = base64.b64decode(newframe)
+
 
     # tratar do resto...
 
