@@ -14,7 +14,7 @@ import requests
 from cpdl import AwsCaptureProcessDisplayLoop
 
 from collections import Counter
-from TrackingPeople import TrackingPeople
+from TrackingPeople import TrackingPeople, BoundingBox
 
 RESOLUTION = {'1080p': (1920, 1080), '720p': (1280, 720), '480p': (858, 480), '240p': (426, 240)}
 
@@ -101,9 +101,9 @@ def main():
         for obj in parsed_inference_results[model_type]:
             if obj['prob'] > detection_threshold:
                 # Add bounding boxes to full resolution frame
-                xmin = int(xscale * obj['xmin'])# + int((obj['xmin'] - model_input_width / 2) + model_input_width / 2)
+                xmin = int(xscale * obj['xmin'])  # + int((obj['xmin'] - model_input_width / 2) + model_input_width / 2)
                 ymin = int(yscale * obj['ymin'])
-                xmax = int(xscale * obj['xmax'])# + int((obj['xmax'] - model_input_width / 2) + model_input_width / 2)
+                xmax = int(xscale * obj['xmax'])  # + int((obj['xmax'] - model_input_width / 2) + model_input_width / 2)
                 ymax = int(yscale * obj['ymax'])
 
                 # See https://docs.opencv.org/3.4.1/d6/d6e/group__imgproc__draw.html
@@ -150,7 +150,7 @@ def main():
         for obj in parsed_inference_results[model_type]:
             if obj['prob'] > detection_threshold:
                 counter_objects[output_map[obj['label']]] += 1
-                
+
                 # Add bounding boxes to full resolution frame
                 xmin = int(xscale * obj['xmin']) + int((obj['xmin'] - model_input_width / 2) + model_input_width / 2)
                 ymin = int(yscale * obj['ymin'])
@@ -164,14 +164,15 @@ def main():
 
                 if obj['label'] == 15:
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (75, 251, 75), 10)
-                    center_circle = (((xmax-xmin)/2)+xmin, ((ymax-ymin)/2)+ymin)
+                    center_circle = (((xmax - xmin) / 2) + xmin, ((ymax - ymin) / 2) + ymin)
 
                     # convert it into HSV
                     # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
                     # roi_hsv = hsv[ymin:ymax, xmin:xmax, :]
 
                     frame_cut = frame[ymin:ymax, xmin:xmax, :]
-                    tracker.find_closest_person_v2(frame_cut, center_circle, frame_timestamp)
+                    tracker.find_closest_person_v2(frame_cut, center_circle, frame_timestamp,
+                                                   BoundingBox(xmin, xmax, ymin, ymax), frame.shape)
                     # tracker.find_closest_person_v2(frame_cut, center_circle, frame_timestamp, frame.shape[1])
 
                 # Amount to offset the label/probability text above the bounding box.
