@@ -18,8 +18,7 @@ from TrackingPeople import TrackingPeople, BoundingBox
 
 RESOLUTION = {'1080p': (1920, 1080), '720p': (1280, 720), '480p': (858, 480), '240p': (426, 240)}
 
-# TODO tune this parameter
-TIMEOUT = 10
+TIMEOUT = 5
 
 
 # load_aws_pretrained_model(model_path: str, use_gpu: bool = True)
@@ -165,15 +164,9 @@ def main():
                 if obj['label'] == 15:
                     cv2.rectangle(frame, (xmin, ymin), (xmax, ymax), (75, 251, 75), 10)
                     center_circle = (((xmax - xmin) / 2) + xmin, ((ymax - ymin) / 2) + ymin)
-
-                    # convert it into HSV
-                    # hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-                    # roi_hsv = hsv[ymin:ymax, xmin:xmax, :]
-
                     frame_cut = frame[ymin:ymax, xmin:xmax, :]
                     tracker.find_closest_person_v2(frame_cut, center_circle, frame_timestamp,
                                                    BoundingBox(xmin, xmax, ymin, ymax), frame.shape)
-                    # tracker.find_closest_person_v2(frame_cut, center_circle, frame_timestamp, frame.shape[1])
 
                 # Amount to offset the label/probability text above the bounding box.
                 text_offset = 15
@@ -190,12 +183,15 @@ def main():
         # print len(tracker.people)
 
         for person in tracker.people:
-            if frame_timestamp - person.feature.timestamp > TIMEOUT:
-                tracker.people.remove(person)
-            else:
-                for position in person.positions:
-                    # cv2.circle(frame, point, 25, (75, 251, 75), 20)
+            for idx, position in enumerate(person.positions):
+                if frame_timestamp - person.timestamps[idx] > TIMEOUT:
+                    del (person.positions[idx])
+                    del (person.timestamps[idx])
+                else:
                     cv2.circle(frame, position, 25, person.colour, 20)
+
+            if len(person.positions) == 0:
+                del person
 
         return frame, filtered_peeps
 
@@ -220,7 +216,7 @@ def main():
         jpeg_as_text = base64.b64encode(jpeg).decode()
 
         # send newframe
-        requests.put('http://10.8.10.6:5000/video_stream', json={'frame': jpeg_as_text, 'objects': frame[1]})
+        requests.put('http://10.8.10.248:5000/video_stream', json={'frame': jpeg_as_text, 'objects': frame[1]})
 
     # start Capture Process Display Loop (capture and processing handlers are executed on separate threads whenever
     # possible)
